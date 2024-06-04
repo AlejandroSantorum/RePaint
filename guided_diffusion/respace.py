@@ -96,7 +96,7 @@ class SpacedDiffusion(GaussianDiffusion):
         base_diffusion = GaussianDiffusion(conf=conf,
                                            **kwargs)  # pylint: disable=missing-kwoa
 
-        if conf.respace_interpolate:
+        if conf is not None and conf.respace_interpolate:
             new_betas = resample_betas(
                 kwargs["betas"], int(conf.timestep_respacing))
             self.timestep_map = list(range(len(new_betas)))
@@ -112,7 +112,7 @@ class SpacedDiffusion(GaussianDiffusion):
 
         kwargs["betas"] = np.array(new_betas)
 
-        if conf.use_value_logger:
+        if conf is not None and conf.use_value_logger:
             conf.value_logger.add_value(
                 new_betas, 'new_betas SpacedDiffusion')
 
@@ -163,7 +163,7 @@ class _WrappedModel:
             raise NotImplementedError()
             #new_ts = self.do_rescale_timesteps(new_ts)
 
-        if self.conf.respace_interpolate:
+        if self.conf is not None and self.conf.respace_interpolate:
             new_ts = new_ts.float() * (
                 (self.conf.diffusion_steps - 1) / (float(self.conf.timestep_respacing) - 1.0))
 

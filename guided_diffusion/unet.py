@@ -650,11 +650,12 @@ class UNetModel(nn.Module):
         :return: an [N x C x ...] Tensor of outputs.
         """
 
-        if timesteps[0].item() > self.conf.diffusion_steps:
-            raise RuntimeError("timesteps larger than diffusion steps.",
-                               timesteps[0].item(), self.conf.diffusion_steps)
+        if self.conf is not None:
+            if timesteps[0].item() > self.conf.diffusion_steps:
+                raise RuntimeError("timesteps larger than diffusion steps.",
+                                timesteps[0].item(), self.conf.diffusion_steps)
 
-        if self.conf.use_value_logger:
+        if self.conf is not None and self.conf.use_value_logger:
             self.conf.value_logger.add_to_list(
                 'model_time', timesteps[0].item())
 

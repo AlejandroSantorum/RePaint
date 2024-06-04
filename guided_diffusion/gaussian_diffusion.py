@@ -347,7 +347,10 @@ class GaussianDiffusion:
         """
         noise = th.randn_like(x)
 
-        if conf.inpa_inj_sched_prev:
+        _inpa_inj_sched_prev = conf.get("inpa_inj_sched_prev", True) if conf is not None else True
+        _inpa_inj_sched_prev_cumnoise = conf.get("inpa_inj_sched_prev_cumnoise", False) if conf is not None else False
+
+        if _inpa_inj_sched_prev:
 
             if pred_xstart is not None:
                 gt_keep_mask = model_kwargs.get('gt_keep_mask')
@@ -359,7 +362,7 @@ class GaussianDiffusion:
                 alpha_cumprod = _extract_into_tensor(
                     self.alphas_cumprod, t, x.shape)
 
-                if conf.inpa_inj_sched_prev_cumnoise:
+                if _inpa_inj_sched_prev_cumnoise:
                     weighed_gt = self.get_gt_noised(gt, int(t[0].item()))
                 else:
                     gt_weight = th.sqrt(alpha_cumprod)
@@ -489,18 +492,28 @@ class GaussianDiffusion:
         else:
             image_after_step = th.randn(*shape, device=device)
 
-        debug_steps = conf.pget('debug.num_timesteps')
+        debug_steps = conf.pget('debug.num_timesteps') if conf is not None else 0
 
         self.gt_noises = None  # reset for next image
-
 
         pred_xstart = None
 
         idx_wall = -1
         sample_idxs = defaultdict(lambda: 0)
 
-        if conf.schedule_jump_params:
-            times = get_schedule_jump(**conf.schedule_jump_params)
+        if conf is None or conf.schedule_jump_params is None:
+            # default schedule jump parameters
+            _schedule_jump_params = {
+                "t_T": 250,
+                "n_sample": 1,
+                "jump_length": 10,
+                "jump_n_sample": 10,
+            }
+        else:
+            _schedule_jump_params = conf.schedule_jump_params
+
+        if _schedule_jump_params:
+            times = get_schedule_jump(**_schedule_jump_params)
 
             time_pairs = list(zip(times[:-1], times[1:]))
             if progress:
