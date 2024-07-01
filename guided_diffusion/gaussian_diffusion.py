@@ -354,13 +354,22 @@ class GaussianDiffusion:
 
             if pred_xstart is not None:
                 gt_keep_mask = model_kwargs.get('gt_keep_mask')
-                if gt_keep_mask is None:
+                if conf is not None and gt_keep_mask is None:
                     gt_keep_mask = conf.get_inpa_mask(x)
 
                 gt = model_kwargs['gt']
 
-                alpha_cumprod = _extract_into_tensor(
-                    self.alphas_cumprod, t, x.shape)
+                if t == 0:  # TODO: Implement this when computing the beta schedule
+                    alpha_cumprod = th.ones_like(x)
+                else:
+                    alpha_cumprod = _extract_into_tensor(
+                        self.alphas_cumprod, t, x.shape)
+
+                # TODO: Remove
+                if t == 0:
+                    print(f"T == 0 (_inpa_inj_sched_prev_cumnoise = {_inpa_inj_sched_prev_cumnoise})")
+                    print(alpha_cumprod)
+                    print(" -------------------------------- ")
 
                 if _inpa_inj_sched_prev_cumnoise:
                     weighed_gt = self.get_gt_noised(gt, int(t[0].item()))
@@ -382,7 +391,6 @@ class GaussianDiffusion:
                         x
                     )
                 )
-
 
         out = self.p_mean_variance(
             model,
@@ -547,7 +555,7 @@ class GaussianDiffusion:
                         yield out
 
                 else:
-                    t_shift = conf.get('inpa_inj_time_shift', 1)
+                    t_shift = conf.get('inpa_inj_time_shift', 1) if conf else 1
 
                     image_before_step = image_after_step.clone()
                     image_after_step = self.undo(
