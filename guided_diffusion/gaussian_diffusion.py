@@ -280,6 +280,10 @@ class GaussianDiffusion:
             model_mean.shape == model_log_variance.shape == pred_xstart.shape == x.shape
         )
 
+        # TODO: Remove
+        if t == 0:
+            model_mean = x
+
         return {
             "mean": model_mean,
             "variance": model_variance,
@@ -304,9 +308,7 @@ class GaussianDiffusion:
 
         This uses the conditioning strategy from Sohl-Dickstein et al. (2015).
         """
-
         gradient = cond_fn(x, self._scale_timesteps(t), **model_kwargs)
-
 
         new_mean = (
             p_mean_var["mean"].float() + p_mean_var["variance"] *
