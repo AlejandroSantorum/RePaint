@@ -281,8 +281,8 @@ class GaussianDiffusion:
         )
 
         # TODO: Remove
-        if t == 0:
-            model_mean = x
+        # if t == 0:
+        #     model_mean = x
 
         return {
             "mean": model_mean,
@@ -349,51 +349,6 @@ class GaussianDiffusion:
         """
         noise = th.randn_like(x)
 
-        _inpa_inj_sched_prev = conf.get("inpa_inj_sched_prev", True) if conf is not None else True
-        _inpa_inj_sched_prev_cumnoise = conf.get("inpa_inj_sched_prev_cumnoise", False) if conf is not None else False
-
-        if _inpa_inj_sched_prev:
-
-            if pred_xstart is not None:
-                gt_keep_mask = model_kwargs.get('gt_keep_mask')
-                if conf is not None and gt_keep_mask is None:
-                    gt_keep_mask = conf.get_inpa_mask(x)
-
-                gt = model_kwargs['gt']
-
-                if t == 0:  # TODO: Implement this when computing the beta schedule
-                    alpha_cumprod = th.ones_like(x)
-                else:
-                    alpha_cumprod = _extract_into_tensor(
-                        self.alphas_cumprod, t, x.shape)
-
-                # TODO: Remove
-                if t == 0:
-                    print(f"T == 0 (_inpa_inj_sched_prev_cumnoise = {_inpa_inj_sched_prev_cumnoise})")
-                    print(alpha_cumprod)
-                    print(" -------------------------------- ")
-
-                if _inpa_inj_sched_prev_cumnoise:
-                    weighed_gt = self.get_gt_noised(gt, int(t[0].item()))
-                else:
-                    gt_weight = th.sqrt(alpha_cumprod)
-                    gt_part = gt_weight * gt
-
-                    noise_weight = th.sqrt((1 - alpha_cumprod))
-                    noise_part = noise_weight * th.randn_like(x)
-
-                    weighed_gt = gt_part + noise_part
-
-                x = (
-                    gt_keep_mask * (
-                        weighed_gt
-                    )
-                    +
-                    (1 - gt_keep_mask) * (
-                        x
-                    )
-                )
-
         out = self.p_mean_variance(
             model,
             x,
@@ -412,8 +367,44 @@ class GaussianDiffusion:
                 cond_fn, out, x, t, model_kwargs=model_kwargs
             )
 
-        sample = out["mean"] + nonzero_mask * \
-            th.exp(0.5 * out["log_variance"]) * noise
+        sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
+        
+        _inpa_inj_sched_prev = conf.get("inpa_inj_sched_prev", True) if conf is not None else True
+        _inpa_inj_sched_prev_cumnoise = conf.get("inpa_inj_sched_prev_cumnoise", False) if conf is not None else False
+
+        # RePainting method: https://arxiv.org/pdf/2201.09865
+        if _inpa_inj_sched_prev:
+            if pred_xstart is not None:
+                gt_keep_mask = model_kwargs.get('gt_keep_mask')
+                if conf is not None and gt_keep_mask is None:
+                    gt_keep_mask = conf.get_inpa_mask(x)
+
+                gt = model_kwargs['gt']
+
+                if t == 0:
+                    # When t=0, we use the ground truth (no noise added)
+                    alpha_cumprod = th.ones_like(x)
+                else:
+                    # Note we use t-1 since we are predicting x_{t-1}
+                    alpha_cumprod = _extract_into_tensor(
+                            self.alphas_cumprod, t-1, x.shape)
+
+                if _inpa_inj_sched_prev_cumnoise:
+                    weighed_gt = self.get_gt_noised(gt, int(t[0].item()))
+                else:
+                    gt_weight = th.sqrt(alpha_cumprod)
+                    gt_part = gt_weight * gt
+
+                    noise_weight = th.sqrt((1 - alpha_cumprod))
+                    noise_part = noise_weight * th.randn_like(x)
+
+                    weighed_gt = gt_part + noise_part
+
+                sample = (
+                    gt_keep_mask * weighed_gt
+                    +
+                    (1 - gt_keep_mask) * sample
+                )
 
         result = {"sample": sample,
                   "pred_xstart": out["pred_xstart"], 'gt': model_kwargs.get('gt')}
@@ -514,10 +505,11 @@ class GaussianDiffusion:
         if conf is None or conf.schedule_jump_params is None:
             # default schedule jump parameters
             _schedule_jump_params = {
-                "t_T": 250,
+                "t_T": self.num_timesteps,
                 "n_sample": 1,
                 "jump_length": 10,
-                "jump_n_sample": 10,
+                "jump_n_sample": 5,
+                "start_resampling": self.num_timesteps//4,
             }
         else:
             _schedule_jump_params = conf.schedule_jump_params
