@@ -280,10 +280,6 @@ class GaussianDiffusion:
             model_mean.shape == model_log_variance.shape == pred_xstart.shape == x.shape
         )
 
-        # TODO: Remove
-        # if t == 0:
-        #     model_mean = x
-
         return {
             "mean": model_mean,
             "variance": model_variance,
@@ -381,7 +377,7 @@ class GaussianDiffusion:
 
                 gt = model_kwargs['gt']
 
-                if t == 0:
+                if t[0] == 0:
                     # When t=0, we use the ground truth (no noise added)
                     alpha_cumprod = th.ones_like(x)
                 else:
